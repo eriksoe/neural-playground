@@ -2,6 +2,10 @@
 
 import random
 
+def scale(samples, amount):
+    coeff = 1 + amount * random.uniform(-0.5, 0.2)
+    return [x * coeff for x in samples]
+
 def nonlinear1(samples, amount):
     coeff = 20*amount
     return [x + coeff * x**3 for x in samples]
@@ -52,3 +56,10 @@ def distort_time_rec(src, dest, src_a, src_b, dest_a, dest_b, amount):
             print "Gah! (%s,%s) -> %s, %s" % (src_a, src_b, src_rnd, src_mid)
         distort_time_rec(src, dest, src_a, src_mid, dest_a, dest_mid, amount)
         distort_time_rec(src, dest, src_mid, src_b, dest_mid, dest_b, amount)
+
+distortion_collection = [
+    scale,
+    nonlinear1, nonlinear2,
+    add_white_noise,
+    distort_time, distort_time2
+]

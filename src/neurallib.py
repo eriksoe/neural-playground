@@ -66,28 +66,32 @@ class NeuralNetwork:
 
     #========== EVALUATION etc. ========================================
     def build_functions(this):
+        print "NET| Build - evaluation..."
         #---- Evaluation:
         inputs = T_variable_with_shape(this.in_shape, name='inputs')
         outputs = this.T_evaluate(inputs)
         this.evaluate_fun = T.function([inputs], outputs)
 
         #---- Cost:
+        print "NET| Build - cost..."
         expected_outputs = T_variable_with_shape(this.out_shape, name='outputs')
         cost = this.T_cost(outputs, expected_outputs)
         this.cost_fun = T.function([outputs, expected_outputs], cost)
 
         #---- Gradient:
-        print "weights = %s" % this.weights
-        print "cost = %s" % cost
-        print(T.pp(cost))
+        print "NET| Build - gradient..."
+        #print "weights = %s" % this.weights
+        #print "cost = %s" % cost
+        #print(T.pp(cost))
         weight_gradient = TT.grad(cost, this.weights)
-        print "weight_gradient = %s" % weight_gradient
+        #print "weight_gradient = %s" % weight_gradient
         bias_gradient = TT.grad(cost, this.biases)
-        print "bias_gradient = %s" % bias_gradient
+        #print "bias_gradient = %s" % bias_gradient
         this.gradient_fun = T.function([inputs, expected_outputs],
                                        weight_gradient + bias_gradient)
 
         #---- Derivatives along given direction:
+        print "NET| Build - derivatives..."
         w_direction = [T_variable_with_shape(shape,'w_dir') for shape in this.weight_shapes]
         b_direction = [T_variable_with_shape(shape,'b_dir') for shape in this.bias_shapes]
         step = TT.scalar()
@@ -101,14 +105,17 @@ class NeuralNetwork:
         this.derivatives_fun = T.function([inputs, expected_outputs] + w_direction + b_direction, [deriv0, deriv1, deriv2], givens=[(step,0.0)])
 
         #---- Updating:
+        print "NET| Build - updating..."
         alpha = TT.scalar('alpha')
         weight_vars = this.weights + this.biases
         delta_vars = ([T_variable_with_shape(shape) for shape in this.weight_shapes] +
                  [T_variable_with_shape(shape) for shape in this.bias_shapes])
         updates = [(v,v+alpha*delta) for (v,delta) in zip(weight_vars, delta_vars)]
-        print "Updates = %s" % updates
+        #print "Updates = %s" % updates
         this.update_with_delta_fun = T.function([alpha] + delta_vars, [],
                                                 updates=updates)
+
+        print "NET| Build - done."
 
     def T_evaluate(this, inputs):
         layer_count = len(this.weight_shapes)
