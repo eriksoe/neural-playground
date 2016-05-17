@@ -61,5 +61,6 @@ distortion_collection = [
     scale,
     nonlinear1, nonlinear2,
     add_white_noise,
-    distort_time, distort_time2
+    #distort_time,  -- DISABLED because it changes the number of samples.
+    distort_time2
 ]

@@ -57,6 +57,7 @@ class NeuralNetwork:
         for dest_layer_shape in dls:
             weight_shape = tuple(list(last_shape) + list(dest_layer_shape))
             weight_shapes.append(weight_shape)
+            last_shape = dest_layer_shape
         bias_shapes = dls
         return (weight_shapes, bias_shapes)
 
@@ -120,13 +121,14 @@ class NeuralNetwork:
     def T_evaluate(this, inputs):
         layer_count = len(this.weight_shapes)
         data = inputs
+        data_dims = len(this.in_shape)
         for i in range(layer_count):
             if i>0: data = this.logistic(data)
 
-            layer_dims = len(this.bias_shapes[i])
             ws = this.weights[i]
             bs = this.biases[i]
-            data = TT.tensordot(data, ws, layer_dims) + bs
+            data = TT.tensordot(data, ws, data_dims) + bs
+            data_dims = len(this.bias_shapes[i])
         return data
 
     def T_cost(this, outputs, expected_outputs):
@@ -134,6 +136,9 @@ class NeuralNetwork:
 
     def logistic(this, x):
         return 1 / (1 + TT.exp(-x))
+
+    def gradient_shape(this):
+        return this.weight_shapes + this.bias_shapes
 
     #========== EVALUATION etc. - PUBLIC ==============================
     def evaluate(this, in_data):
@@ -146,7 +151,68 @@ class NeuralNetwork:
         return this.gradient_fun(in_data, expected_output)
 
     def derivatives(this, in_data, expected_output, direction):
-        return this.derivatives_fun(in_data, expected_output, *direction)
+        (d0,d1,d2) = this.derivatives_fun(in_data, expected_output, *direction)
+        return (d0,d1,d2)
 
     def update_with_delta(this, alpha, delta):
         this.update_with_delta_fun(alpha, *delta)
+
+
+
+class MiniBatchTrainer:
+    def __init__(self, net, minibatch_size=10):
+        self._net = net
+        self._minibatch_size = minibatch_size
+
+        self._gradient_shape = net.gradient_shape()
+        self._reset_minibatch(None)
+        self._training_cost = 0.0
+
+    def _reset_minibatch(self, new_gradient):
+        self._full_gradient = new_gradient
+        self._acc_gradient = [NP.zeros(shape) for shape in self._gradient_shape]
+        self._acc_directional_derivatives = (0,0,0)
+        self._minibatch_pos = 0
+
+    def present_one_example(self, inputs, outputs):
+        #print "Example: %s/%s" % (inputs, outputs)
+        net = self._net
+        gradient = net.gradient(inputs, outputs)
+        self._acc_gradient = [(ag+g) for (ag,g) in zip(self._acc_gradient, gradient)]
+        if self._full_gradient != None:
+            #print "DB| calcing derivatives from _full_gradient: %s" % (self._full_gradient,)
+            (d0,d1,d2) = net.derivatives(inputs, outputs, self._full_gradient)
+            (ad0, ad1, ad2) = self._acc_directional_derivatives
+            self._acc_directional_derivatives = (ad0+d0, ad1+d1, ad2+d2)
+            cur_cost = d0
+        else:
+            actual_outputs = net.evaluate(inputs)
+            cost = net.cost(actual_outputs, outputs)
+            cur_cost = cost
+
+        self._training_cost += cur_cost
+        print "Cost: %f" % cur_cost
+
+        self._minibatch_pos += 1
+        if self._minibatch_pos >= self._minibatch_size:
+            self.flush_minibatch()
+
+
+    def flush_minibatch(self):
+        if self._minibatch_pos == 0:
+            return
+
+        if self._full_gradient != None:
+            print "DB| acc_directional_derivatives = %s" % (self._acc_directional_derivatives,)
+            (d0, d1, d2) = self._acc_directional_derivatives
+            step = 0.5 * min(abs(d0/d1), abs(d1 / d2))
+            step *= (self._minibatch_pos / self._minibatch_size)
+            print "Step: %s" % (step,)
+            if NP.isfinite(step):
+                self._net.update_with_delta(-step, self._full_gradient)
+            else:
+                print "*** step is %s because of derivativesd= %s" % (step, self._acc_directional_derivatives)
+
+        self._reset_minibatch(self._acc_gradient)
+        print "Training cost so far: %s" % (self._training_cost)
+

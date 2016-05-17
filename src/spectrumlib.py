@@ -52,10 +52,10 @@ def forward_fft(ws):
     seg_cnt = ws.shape[0]
     freq_cnt = ws.shape[1]//2 + 1
     #print "freq_cnt = %s" % (freq_cnt,)
-    freqs = np.empty((seg_cnt, freq_cnt), dtype=complex)
+    freqs = np.empty((seg_cnt, freq_cnt), dtype=float)
     for i in range(seg_cnt):
-        freqs[i] = np.fft.rfft(ws[i])
-        #freqs[i] = abs(freqs[i])
+        #freqs[i] = np.fft.rfft(ws[i])
+        freqs[i] = abs(np.fft.rfft(ws[i]))
     return freqs
 
 # backward_fft : freq-windows -> ampl-windows

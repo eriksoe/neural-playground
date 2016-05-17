@@ -44,6 +44,7 @@ class SoundAutoencoderProgram:
         print "Loaded: %d validation sounds" % (len(self.validation_data),)
 
         self.net = neurallib.NeuralNetwork((3,100), (100,), [100])
+        self.trainer = neurallib.MiniBatchTrainer(self.net, 10)
 
     def pick_training_example(self):
         org_sound = random.choice(self.training_data)
@@ -51,7 +52,11 @@ class SoundAutoencoderProgram:
         for distortion in distortlib.distortion_collection:
             if random.uniform(0,1) < distort_prob:
                 amount = random.uniform(0,1)
+                before = len(sound)
                 sound = distortion(sound, amount)
+                after = len(sound)
+                if before != after:
+                    print "BAD distortion: %s" % distortion
 
         return (org_sound,sound)
 
@@ -69,13 +74,14 @@ class SoundAutoencoderProgram:
         ref_ampls = spectrumlib.enwindow(ref_sound, seg_size)
         ref_freqs = spectrumlib.forward_fft(ref_ampls)
 
+        #print "%d/%d ; %d/%d" % (len(sound), len(ref_sound), len(freqs), len(ref_freqs))
         samples = []
         for i in range(len(freqs)):
-            this_seq = freqs[i]
-            last_seg = freqs[i-1] if i>0 else numpy.zeros((100,))
-            next_seg = freqs[i+1] if i+1<len(freqs) else numpy.zeros((100,))
-            inputs = [last_seg,this_seq,next_seg]
-            outputs = ref_freqs[i]
+            this_seg = freqs[i][0:100]
+            last_seg = freqs[i-1][0:100] if i>0 else numpy.zeros((100,))
+            next_seg = freqs[i+1][0:100] if i+1<len(freqs) else numpy.zeros((100,))
+            inputs = numpy.array([last_seg,this_seg,next_seg], dtype='float')
+            outputs = ref_freqs[i][0:100]
             samples.append( (inputs, outputs) )
         return samples
 
@@ -83,9 +89,12 @@ class SoundAutoencoderProgram:
         (ref_sound,sound) = self.pick_training_example()
         training_sets = self.prepare_sample(sound, ref_sound)
         # TODO: make and use a NeuralNetwork trainer which handles minibatching.
+        for (inputs, outputs) in training_sets:
+            self.trainer.present_one_example(inputs, outputs)
 
 prg = SoundAutoencoderProgram(training_data_path, validation_data_path)
 #(org_sound,sound) = prg.pick_training_example()
 #wavlib.write_wav("dump.wav", sound)
 #wavlib.write_wav("dump2.wav", org_sound)
-prg.train_one_sound()
+for i in range(100):
+    prg.train_one_sound()
